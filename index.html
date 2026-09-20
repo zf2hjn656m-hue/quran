@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f4eee0">
+<title>رفيق القرآن</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#eee7d8;color:#4b3b28;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif}
+body{min-height:100vh}
+.app{max-width:760px;margin:auto;min-height:100vh;display:flex;flex-direction:column}
+.top{padding:12px 12px 8px;text-align:center;background:#f5efdf}
+.title{font-size:20px;font-weight:700;margin:0}
+.note{font-size:12px;color:#8b7b65;margin-top:3px}
+.mushaf-wrap{position:relative;background:#f7f0df;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.mushaf{display:block;width:100%;height:auto;background:#f7f0df}
+.loading{min-height:70vh;display:grid;place-items:center;color:#8b7b65}
+.error{padding:45px 20px;text-align:center;line-height:1.8;color:#8b3c2f}
+.controls{background:#f5efdf;border-top:1px solid #ded2bc;padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+button{border:0;background:#a48452;color:#fff;border-radius:12px;padding:10px 15px;font-size:15px;font-weight:600}
+button:disabled{opacity:.35}
+.page{min-width:105px;text-align:center;font-weight:700}
+.tools{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.tool{background:#e9e0cf;color:#4b3b28}
+.jump{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:8px}
+input{width:72px;padding:9px;border:1px solid #d7c9af;border-radius:10px;text-align:center;font-size:16px;background:#fff}
+.saved{text-align:center;font-size:11px;color:#8b7b65;margin-top:7px;min-height:16px}
+.source{text-align:center;font-size:10px;color:#9b8d79;padding:7px 10px 15px;background:#f5efdf}
+.source a{color:#80643d}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="title">رفيق القرآن 🤍</div>
+    <div class="note">مصحف المدينة — 604 صفحة</div>
+  </div>
+
+  <div class="mushaf-wrap" id="reader">
+    <div class="loading">جاري فتح المصحف…</div>
+  </div>
+
+  <div class="controls">
+    <div class="nav">
+      <button id="prev">السابق</button>
+      <div class="page" id="pageLabel">صفحة 1 / 604</div>
+      <button id="next">التالي</button>
+    </div>
+
+    <div class="tools">
+      <button class="tool" id="save">🔖 حفظ آخر صفحة</button>
+      <button class="tool" id="reset">البدء من الصفحة 1</button>
+    </div>
+
+    <div class="jump">
+      <span>صفحة</span>
+      <input id="pageInput" type="number" min="1" max="604" inputmode="numeric">
+      <button class="tool" id="go">فتح</button>
+    </div>
+
+    <div class="saved" id="saved"></div>
+  </div>
+
+  <div class="source">
+    تُعرض صفحة المصحف كصفحة كاملة، بدون إعادة كتابة الآيات أو إعادة ترتيب أرقامها.
+    <br>
+    <a href="https://islamic.app/developers/mushaf" target="_blank" rel="noopener">مصدر صفحات المصحف</a>
+  </div>
+</div>
+
+<script>
+(() => {
+  const TOTAL = 604;
+  const tag = new URLSearchParams(location.search).get("tag") || "default";
+  const KEY = "quran_nfc_last_page_" + tag;
+
+  const reader = document.getElementById("reader");
+  const label = document.getElementById("pageLabel");
+  const input = document.getElementById("pageInput");
+  const saved = document.getElementById("saved");
+  const prev = document.getElementById("prev");
+  const next = document.getElementById("next");
+  const save = document.getElementById("save");
+  const reset = document.getElementById("reset");
+  const go = document.getElementById("go");
+
+  let page = Math.min(TOTAL, Math.max(1, Number(localStorage.getItem(KEY)) || 1));
+  let startX = null;
+
+  function urlFor(p){
+    return "https://api.islamic.app/v1/mushaf/page/" + p +
+           ".svg?font=uthmani&theme=light&width=1200";
+  }
+
+  function savePage(){
+    localStorage.setItem(KEY, String(page));
+    saved.textContent = "تم حفظ الصفحة " + page + " لهذا الـNFC";
+  }
+
+  function render(p, doSave=true){
+    page = Math.min(TOTAL, Math.max(1, Number(p) || 1));
+    label.textContent = "صفحة " + page + " / " + TOTAL;
+    input.value = page;
+    prev.disabled = page === 1;
+    next.disabled = page === TOTAL;
+
+    reader.innerHTML = "";
+    const img = document.createElement("img");
+    img.className = "mushaf";
+    img.alt = "صفحة " + page + " من المصحف الشريف";
+    img.draggable = false;
+    img.src = urlFor(page);
+    reader.appendChild(img);
+
+    img.onerror = () => {
+      reader.innerHTML = '<div class="error">تعذر تحميل الصفحة الآن.<br>تأكدي من الإنترنت واضغطي التالي أو أعيدي فتح الصفحة.</div>';
+    };
+
+    if(doSave) savePage();
+  }
+
+  prev.onclick = () => render(page - 1);
+  next.onclick = () => render(page + 1);
+  save.onclick = savePage;
+  reset.onclick = () => render(1);
+  go.onclick = () => render(Number(input.value));
+  input.addEventListener("keydown", e => { if(e.key === "Enter") go.click(); });
+
+  reader.addEventListener("touchstart", e => {
+    startX = e.changedTouches[0].clientX;
+  }, {passive:true});
+
+  reader.addEventListener("touchend", e => {
+    if(startX === null) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if(Math.abs(dx) > 55){
+      if(dx < 0 && page < TOTAL) render(page + 1);
+      if(dx > 0 && page > 1) render(page - 1);
+    }
+    startX = null;
+  }, {passive:true});
+
+  render(page, false);
+  saved.textContent = "التاق: " + tag + " · آخر صفحة محفوظة: " + page;
+})();
+</script>
+</body>
+</html>
